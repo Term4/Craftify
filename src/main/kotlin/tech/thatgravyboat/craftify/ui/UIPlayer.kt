@@ -35,6 +35,7 @@ class UIPlayer : UIRoundedRectangle(0f) {
     var isDragging = false // Made public so Player can check if dragging
     var isEditMode = false // Edit mode - when true, dragging is enabled; when false, controls work normally
     private var savedPixelPosition: Pair<Float, Float>? = null // Saved pixel position from dragging (null means use anchor point)
+    private var originalY: Float? = null // Store original Y position for hover animations
 
     init {
         // Read anchor point and offsets from config file BEFORE calling updateDimensions()
@@ -131,6 +132,11 @@ class UIPlayer : UIRoundedRectangle(0f) {
         }
         
         onMouseEnter {
+            // Store original Y position if not already stored
+            if (originalY == null) {
+                originalY = getTop()
+            }
+            
             // Show different border color when in edit mode
             val borderColor = if (isEditMode) {
                 java.awt.Color(255, 255, 0, 255) // Yellow border to indicate edit mode
@@ -139,16 +145,47 @@ class UIPlayer : UIRoundedRectangle(0f) {
             }
             enableEffect(OutlineEffect(borderColor, if (isEditMode) 2F else 1F, drawInsideChildren = true))
             if (Config.premiumControl) {
-                setHeight(63f.scaledPixel())
-                if (anchorToUse.ordinal > 4) setY(anchorToUse.getY(this) - 13f.scaledPixel())
+                // Expand height to accommodate controls
+                val expandedHeight = 63f.scaledPixel()
+                setHeight(expandedHeight)
+                // Adjust Y position to make controls "pop out" - move up to create a visual pop effect
+                val storedY = originalY ?: getTop()
+                // Calculate pixel offsets (not constraints)
+                val popOffsetPx = 8f * Config.hudScale // Amount to pop out in pixels
+                val controlOffsetPx = 13f * Config.hudScale // Height of controls area in pixels
+                val newY = if (anchorToUse.ordinal > 4) {
+                    // Bottom anchors: move up to pop out (controls appear below, making them more visible)
+                    storedY - controlOffsetPx - popOffsetPx
+                } else {
+                    // Top/middle anchors: move down to pop out (controls appear below, making them more visible)
+                    storedY - popOffsetPx
+                }
+                setY(newY.pixels())
                 this.addChild(controls)
+                controls.setY(50f.scaledPixel())
             }
         }
 
         onMouseLeave {
             removeEffect<OutlineEffect>()
             setHeight(50f.scaledPixel())
-            if (anchorToUse.ordinal > 4) setY(anchorToUse.getY(this))
+            // Restore original Y position
+            val storedY = originalY
+            if (storedY != null) {
+                setY(storedY.pixels())
+                originalY = null // Reset for next hover
+            } else {
+                // Fallback: calculate restore position
+                val currentY = getTop()
+                val popOffset = 8f * Config.hudScale // In pixels
+                val controlOffset = 13f * Config.hudScale // In pixels
+                val restoredY = if (anchorToUse.ordinal > 4) {
+                    currentY + controlOffset + popOffset
+                } else {
+                    currentY + popOffset
+                }
+                setY(restoredY.pixels())
+            }
             this.removeChild(controls)
         }
         
@@ -239,18 +276,7 @@ class UIPlayer : UIRoundedRectangle(0f) {
         // Don't update position if we're currently dragging - this prevents flashing/disappearing and jumping
         // Note: isEditMode should NOT prevent position updates - it only enables dragging when active
         if (isDragging) {
-            // Only update dimensions, not position - preserve current position
-            // Use current position instead of recalculating to prevent jumps near edges
-            val currentX = getLeft()
-            val currentY = getTop()
-            constrain {
-                height = 50f.scaledPixel()
-                width = 150f.scaledPixel()
-                x = currentX.pixels()
-                y = currentY.pixels()
-                color = ConfigColorConstraint("background")
-                radius = ThemeConfig.backgroundRadius.pixels()
-            }
+            // Don't update anything while dragging - preserve current state completely
             return
         }
         
@@ -358,7 +384,10 @@ class UIPlayer : UIRoundedRectangle(0f) {
     }
 
     fun updateTheme() {
-        updateDimensions()
+        // Don't update dimensions if we're currently dragging - this prevents snapping/disappearing
+        if (!isDragging) {
+            updateDimensions()
+        }
         // Update background color directly - force recalculation by creating new constraint
         val bgConstraint = ConfigColorConstraint("background")
         bgConstraint.recalculate = true
@@ -398,15 +427,62 @@ class UIPlayer : UIRoundedRectangle(0f) {
         this.setRadius(ThemeConfig.backgroundRadius.pixels())
     }
 
+    private var lastHoverState: Boolean = false
+    private var hoverStableTime: Long = 0
+    private val HOVER_DEBOUNCE_MS = 100L // Increased debounce time
+    
     override fun isHovered(): Boolean {
         // Only allow hover detection when a screen is open OR in edit mode
         // This prevents flickering when crosshair moves over overlay during normal gameplay
         val screenOpen = UScreen.currentScreen != null
-        return if (screenOpen || isEditMode) {
-            super.isHovered()
-        } else {
-            false
+        if (!screenOpen && !isEditMode) {
+            lastHoverState = false
+            hoverStableTime = 0
+            return false
         }
+        
+        // Check if mouse is actually over the component (not just the controls area)
+        val mouseX = UMouse.Scaled.x.toFloat()
+        val mouseY = UMouse.Scaled.y.toFloat()
+        val left = getLeft()
+        val top = getTop()
+        val width = getWidth()
+        // Always check against the expanded height (with controls) to prevent flickering
+        // when controls expand/contract
+        val height = if (Config.premiumControl) {
+            63f * Config.hudScale // Expanded height when controls are visible
+        } else {
+            50f * Config.hudScale // Normal height
+        }
+        
+        // Check if mouse is within bounds (with a larger buffer to prevent edge flickering)
+        val buffer = 10f // Increased buffer to prevent edge flickering
+        val isInBounds = mouseX >= left - buffer && 
+                        mouseX <= left + width + buffer &&
+                        mouseY >= top - buffer && 
+                        mouseY <= top + height + buffer
+        
+        val currentTime = System.currentTimeMillis()
+        val currentHover = isInBounds
+        
+        // Add hysteresis: only change state if it's been stable for the debounce period
+        if (currentHover != lastHoverState) {
+            if (hoverStableTime == 0L) {
+                // Start tracking when state changed
+                hoverStableTime = currentTime
+            } else if (currentTime - hoverStableTime >= HOVER_DEBOUNCE_MS) {
+                // State has been stable long enough, apply the change
+                lastHoverState = currentHover
+                hoverStableTime = 0
+            }
+            // Return previous state while waiting for stability
+            return lastHoverState
+        } else {
+            // State hasn't changed, reset stability timer
+            hoverStableTime = 0
+        }
+        
+        return lastHoverState
     }
     
     // Called every tick to handle dragging
@@ -429,8 +505,10 @@ class UIPlayer : UIRoundedRectangle(0f) {
             val currentHeight = 50f * Config.hudScale
             
             // Use setX/setY instead of constrain to avoid conflicts
-            val clampedX = newX.coerceIn(0f, UResolution.scaledWidth - currentWidth)
-            val clampedY = newY.coerceIn(0f, UResolution.scaledHeight - currentHeight)
+            // Clamp with a small margin to prevent snapping at screen edges
+            val margin = 1f
+            val clampedX = newX.coerceIn(margin, UResolution.scaledWidth - currentWidth - margin)
+            val clampedY = newY.coerceIn(margin, UResolution.scaledHeight - currentHeight - margin)
             
             setX(clampedX.pixels())
             setY(clampedY.pixels())

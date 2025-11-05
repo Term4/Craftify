@@ -140,8 +140,23 @@ object Player {
 
     fun changePosition(position: Anchor) {
         // Don't change position if player is currently being dragged
-        // Note: isEditMode should NOT prevent position changes - it only enables dragging
         if (player?.isDragging == true) return
+        
+        // Also don't change position if we're in edit mode and have a saved position
+        // (user has manually dragged it, so respect that position)
+        if (player?.isEditMode == true) {
+            try {
+                val field = player?.javaClass?.getDeclaredField("savedPixelPosition")
+                field?.isAccessible = true
+                val savedPos = field?.get(player)
+                if (savedPos != null) {
+                    // User has dragged to a custom position, don't reset it
+                    return
+                }
+            } catch (e: Exception) {
+                // Field might not exist, continue
+            }
+        }
         
         // Clear saved pixel position when changing anchor point (use anchor-based positioning)
         player?.let { 
