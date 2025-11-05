@@ -53,7 +53,9 @@ object Initializer {
         Updater.check()
         AdManager.load()
 
-        Events.TICK.register { onTick() }
+        Events.TICK.register { 
+            onTick()
+        }
         Events.RENDER.register { onRender(it) }
         Events.MOUSE_CLICKED.register { onMouseClicked(it) }
         Events.SCREEN_CHANGED.register { onScreenChanged(it) }

@@ -20,7 +20,10 @@ import tech.thatgravyboat.jukebox.api.state.State
 import java.net.URI
 import java.net.URL
 
-class UIControls : UIContainer() {
+class UIControls(
+    private val onEditModeToggle: (() -> Unit)? = null,
+    private val getEditModeState: (() -> Boolean)? = null
+) : UIContainer() {
 
     private val play = "https://files.teamresourceful.com/r/rlQyJs.png"
     private val pause = "https://files.teamresourceful.com/r/55kubx.png"
@@ -32,15 +35,28 @@ class UIControls : UIContainer() {
     private val volume = "https://files.teamresourceful.com/r/i7XLC1.png"
     private val position = "https://files.teamresourceful.com/r/N3c8xm.png"
     private val settings = "https://files.teamresourceful.com/r/9DzwrP.png"
+    private val edit = "https://files.teamresourceful.com/r/N3c8xm.png" // Using position icon as edit icon for now
 
-    private val positionButton by UIButton(URL(position), URL(position), click = {
-        Utils.openScreen(PositionEditorScreen())
-        false
+    // Edit mode toggle button - appears first when hovered
+    // Color=true makes it a toggle button that shows state visually
+    private val editButton by UIButton(URL(edit), URL(edit), color = true, click = {
+        onEditModeToggle?.invoke()
+        true // Return true to toggle the visual state
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 2f)
+        x = SiblingConstraint(padding = 1f) // Reduced padding to make controls less crowded
     } childOf this
+
+    // Position button removed - edit mode with drag replaces it
+    // private val positionButton by UIButton(URL(position), URL(position), click = {
+    //     Utils.openScreen(PositionEditorScreen())
+    //     false
+    // }).constrain {
+    //     width = 10.pixels()
+    //     height = 10.pixels()
+    //     x = SiblingConstraint(padding = 2f)
+    // } childOf this
 
     private val settingsButton by UIButton(URL(settings), URL(settings), click = {
         Config.gui()?.let { it1 -> Utils.openScreen(it1) }
@@ -48,7 +64,7 @@ class UIControls : UIContainer() {
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 2f)
+        x = SiblingConstraint(padding = 1f) // Reduced padding
     } childOf this
 
     private val shuffleButton by UIButton(URL(shuffle), URL(shuffle), true, click = {
@@ -57,7 +73,7 @@ class UIControls : UIContainer() {
         width = 10.pixels()
         height = 10.pixels()
         y = 0.pixels()
-        x = SiblingConstraint(padding = 2f)
+        x = SiblingConstraint(padding = 1f) // Reduced padding
     } childOf this
 
     private val prevButton by UIButton(URL(prev), URL(prev), click = {
@@ -65,7 +81,7 @@ class UIControls : UIContainer() {
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 2f)
+        x = SiblingConstraint(padding = 1f) // Reduced padding
     } childOf this
 
     private val playButton by UIButton(URL(play), URL(pause), click = { state ->
@@ -74,7 +90,7 @@ class UIControls : UIContainer() {
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 2f)
+        x = SiblingConstraint(padding = 1f) // Reduced padding
     } childOf this
 
     private val nextButton by UIButton(URL(next), URL(next), click = {
@@ -82,15 +98,15 @@ class UIControls : UIContainer() {
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 2f)
+        x = SiblingConstraint(padding = 1f) // Reduced padding
     } childOf this
 
-    private val repeatButton by UIButton(URL(repeat), URL(repeat), true, click = { state ->
+    private val repeatButton by UIButton(URL(repeat), URL(repeat), true, click = { _ ->
         Initializer.getAPI()?.toggleRepeat() == true
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 2f)
+        x = SiblingConstraint(padding = 1f) // Reduced padding
     } childOf this
 
     private val externalButton by UIButton(URL(external), URL(external), click = {
@@ -105,7 +121,7 @@ class UIControls : UIContainer() {
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 2f)
+        x = SiblingConstraint(padding = 1f) // Reduced padding
     } childOf this
 
     private val volumeButton by UIButton(URL(volume), URL(volume), click = {
@@ -118,7 +134,7 @@ class UIControls : UIContainer() {
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 2f)
+        x = SiblingConstraint(padding = 1f) // Reduced padding
     } childOf this
 
     fun updateState(state: State) {
@@ -128,16 +144,23 @@ class UIControls : UIContainer() {
     }
 
     fun updateTheme() {
-
-        var activeButtons = updateButton(settingsButton, ThemeConfig.showSettingsButton, ThemeConfig.settingsIcon, settings)
+        // Show edit button first (always visible when hovered) - it's the first button to enable drag mode
+        // Update edit button state to match edit mode
+        getEditModeState?.invoke()?.let { isEditMode ->
+            editButton.updateState(isEditMode)
+        }
+        var activeButtons = updateButton(editButton, true, ThemeConfig.positionEditorIcon, edit)
+        
+        activeButtons = updateButton(settingsButton, ThemeConfig.showSettingsButton, ThemeConfig.settingsIcon, settings, activeButtons)
         activeButtons = updateButton(shuffleButton, ThemeConfig.showShuffleButton, ThemeConfig.shuffleIcon, shuffle, activeButtons)
         activeButtons = updateButton(prevButton, ThemeConfig.showPreviousButton, ThemeConfig.previousIcon, prev, activeButtons)
         activeButtons = updateButton(nextButton, ThemeConfig.showNextButton, ThemeConfig.nextIcon, next, activeButtons)
         activeButtons = updateButton(repeatButton, ThemeConfig.showRepeatButton, ThemeConfig.repeatIcon, repeat, activeButtons)
         activeButtons = updateButton(externalButton, ThemeConfig.showExternalButton, ThemeConfig.externalIcon, external, activeButtons)
         activeButtons = updateButton(playButton, ThemeConfig.showPlayButton, ThemeConfig.pauseIcon, pause, activeButtons, ThemeConfig.playIcon, play)
-        activeButtons = updateButton(volumeButton, ThemeConfig.showVolumeButton && (!ThemeConfig.hideImage || activeButtons < 7), ThemeConfig.volumeIcon, volume, activeButtons)
-        activeButtons = updateButton(positionButton, ThemeConfig.showPositionEditorButton && (!ThemeConfig.hideImage || activeButtons < 7), ThemeConfig.positionEditorIcon, position, activeButtons)
+        updateButton(volumeButton, ThemeConfig.showVolumeButton && (!ThemeConfig.hideImage || activeButtons < 7), ThemeConfig.volumeIcon, volume, activeButtons)
+        // Position button removed - edit mode with drag replaces it
+        // activeButtons = updateButton(positionButton, ThemeConfig.showPositionEditorButton && (!ThemeConfig.hideImage || activeButtons < 7), ThemeConfig.positionEditorIcon, position, activeButtons)
     }
 
     private fun updateButton(button: UIButton, visible: Boolean, image: String, default: String, activeButtons: Int = 0, ogimage: String? = null, ogdefault: String? = null): Int {

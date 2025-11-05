@@ -11,6 +11,7 @@ import tech.thatgravyboat.craftify.ui.enums.DisplayMode
 import tech.thatgravyboat.craftify.ui.enums.LinkingMode
 import tech.thatgravyboat.craftify.ui.enums.RenderType
 import tech.thatgravyboat.craftify.utils.*
+import java.awt.Color
 import java.io.File
 
 object Config : Vigilant(File("./config/craftify.toml")) {
@@ -75,6 +76,21 @@ object Config : Vigilant(File("./config/craftify.toml")) {
     var xOffset = 0f
     var yOffset = 0f
     
+    // Background color - synced with ThemeConfig.backgroundColor
+    // Hidden from OneConfig - use ThemeConfig instead
+    @Property(
+        type = PropertyType.COLOR,
+        name = "Background Color",
+        category = "Rendering",
+        description = "The background color of the HUD display.",
+        hidden = true // Hide from OneConfig - use ThemeConfig instead
+    )
+    var backgroundColor: Color = Color(0, 0, 0, 80) // Default value, will be synced in init
+        set(value) {
+            field = value
+            tech.thatgravyboat.craftify.themes.ThemeConfig.backgroundColor = value
+        }
+    
     @Property(
         type = PropertyType.DECIMAL_SLIDER,
         name = "HUD Scale",
@@ -108,8 +124,8 @@ object Config : Vigilant(File("./config/craftify.toml")) {
                 - ${'$'}{artists} will be replaced by the artists.
                 - ${'$'}{artist} will be replaced by the first artist.
             """.trimIndent())
-            button("Theme Config", "Open theme config.", "Open") {
-                gui()?.let(UScreen::displayScreen)
+            button("Theme Config", "Open theme config to change colors (title, artist, progress bar, etc.), fonts, and other visual settings.", "Open") {
+                tech.thatgravyboat.craftify.themes.ThemeConfig.gui()?.let(gg.essential.universal.UScreen::displayScreen)
             }
 
             subcategory("Self Promotion") {
@@ -142,12 +158,16 @@ object Config : Vigilant(File("./config/craftify.toml")) {
                 yOffset = anchorPoint.getDefaultYOffset()
                 markDirty()
                 writeData()
-                // Update player position immediately - force update by calling twice
-                Player.changePosition(anchorPoint)
-                // Also update offsets in case they weren't set correctly
+                // Update player position immediately - but only if not in edit mode (might be dragging)
+                if (!Player.isEditMode()) {
+                    Player.changePosition(anchorPoint)
+                }
+                // Also update offsets in case they weren't set correctly - but only if not in edit mode
                 Utils.async {
                     Thread.sleep(50)
-                    Player.changePosition(anchorPoint)
+                    if (!Player.isEditMode()) {
+                        Player.changePosition(anchorPoint)
+                    }
                 }
             }
             selector(::renderTypeOrdinal, "Render Type", "How/When the song with display.", RenderType.values().map { it.toString() }) {
@@ -172,6 +192,9 @@ object Config : Vigilant(File("./config/craftify.toml")) {
             }
             boolean(::premiumControl, "Controls", "Will allow you to pause/play, skip forward and backwards, repeat, and shuffle the music in game. (Requires Spotify Premium)")
             boolean(::streamerMode, "Streamer Mode", "Will mark the overlay as an overlay in OBS, meaning if you turn off show overlays it won't be shown.\nThis requires the obs-overlay mod to be installed.")
+            
+            // backgroundColor and hudScale are registered via @Property annotations above for OneConfig compatibility
+            // No need to register them manually here - Vigilant will handle them
         }
 
         // Check if config file exists BEFORE initializing
@@ -337,6 +360,15 @@ object Config : Vigilant(File("./config/craftify.toml")) {
                 markDirty()
                 writeData()
             }
+            registerListener("backgroundColor") { _: Any ->
+                // Setter already syncs to ThemeConfig, just trigger UI update
+                // Force recalculation of color constraints
+                Player.updateTheme()
+                tech.thatgravyboat.craftify.themes.ThemeConfig.markDirty()
+                tech.thatgravyboat.craftify.themes.ThemeConfig.writeData()
+                markDirty()
+                writeData()
+            }
             registerListener("linkModeOrdinal") { _: Any ->
                 linkMode = LinkingMode.values()[linkModeOrdinal.coerceIn(0, LinkingMode.values().size - 1)]
                 markDirty()
@@ -356,8 +388,11 @@ object Config : Vigilant(File("./config/craftify.toml")) {
             // registerListener might not be available, that's okay
         }
         
+        // Initialize backgroundColor from ThemeConfig
+        backgroundColor = tech.thatgravyboat.craftify.themes.ThemeConfig.backgroundColor
+        
         // Update player with current config values
         Player.changePosition(anchorPoint)
         Player.updateTheme()
-     }
- }
+    }
+}

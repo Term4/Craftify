@@ -6,6 +6,7 @@ import gg.essential.elementa.dsl.childOf
 import gg.essential.universal.UMatrixStack
 import gg.essential.universal.UMouse
 import gg.essential.universal.UScreen
+import org.lwjgl.input.Mouse
 import tech.thatgravyboat.craftify.Initializer
 import tech.thatgravyboat.craftify.config.Config
 import tech.thatgravyboat.craftify.platform.compat.obsoverlay.ObsOverlayCompat
@@ -117,7 +118,14 @@ object Player {
         }
     }
 
+    fun isEditMode(): Boolean {
+        return player?.isEditMode == true
+    }
+
     fun changePosition(position: Anchor) {
+        // Don't change position if player is currently being dragged or in edit mode
+        if (player?.isDragging == true || isEditMode()) return
+        
         // Store the position so it's applied when player is created
         // Also update immediately if player already exists
         player?.apply {
@@ -131,6 +139,8 @@ object Player {
         if (tempHide) return
         if (canRender() && Config.musicService != "disabled") {
             checkAndInitPlayer()
+            // Update drag during render for smooth 60+ FPS dragging
+            player?.updateDrag()
             ObsOverlayCompat.draw {
                 window.draw(matrix)
             }
@@ -153,5 +163,14 @@ object Player {
             return true
         }
         return false
+    }
+    
+    // Handle mouse drag - called every tick to update drag position
+    fun onMouseDrag() {
+        if (Config.musicService == "disabled") return
+        if (tempHide) return
+        if (canRender() && player != null) {
+            player?.updateDrag()
+        }
     }
 }

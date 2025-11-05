@@ -126,14 +126,7 @@ object ThemeConfig : Vigilant(
     )
     var backgroundColor: Color = Color(0, 0, 0, 80)
 
-    @Property(
-        type = PropertyType.DECIMAL_SLIDER,
-        name = "Background Radius",
-        category = "Theme",
-        minF = 0f,
-        maxF = 10f,
-        decimalPlaces = 0
-    )
+    // Background radius - removed from UI (still exists for compatibility)
     var backgroundRadius: Float = 0f
 
     @Property(
@@ -160,15 +153,7 @@ object ThemeConfig : Vigilant(
     )
     var progressNumberColor: Color = Color.WHITE
 
-    @Property(
-        type = PropertyType.DECIMAL_SLIDER,
-        name = "Radius",
-        category = "Theme",
-        subcategory = "Progress Bar",
-        minF = 0f,
-        maxF = 10f,
-        decimalPlaces = 0
-    )
+    // Progress radius - removed from UI (still exists for compatibility)
     var progressRadius: Float = 3f
 
     @Property(
@@ -372,6 +357,37 @@ object ThemeConfig : Vigilant(
 
     init {
         initialize()
-        registerListener("progressRadius") { _: Float -> Player.updateTheme() }
+        // progressRadius no longer has @Property annotation, so no listener needed
+        
+        // Register listeners for color properties to update UI when changed
+        try {
+            registerListener("backgroundColor") { _: Any ->
+                // Sync to Config.backgroundColor
+                tech.thatgravyboat.craftify.config.Config.backgroundColor = backgroundColor
+                Player.updateTheme()
+                markDirty()
+                writeData()
+            }
+            registerListener("titleColor") { _: Any ->
+                Player.updateTheme()
+            }
+            registerListener("artistColor") { _: Any ->
+                Player.updateTheme()
+            }
+            registerListener("borderColor") { _: Any ->
+                Player.updateTheme()
+            }
+            registerListener("progressColor") { _: Any ->
+                Player.updateTheme()
+            }
+            registerListener("progressBackgroundColor") { _: Any ->
+                Player.updateTheme()
+            }
+            registerListener("progressNumberColor") { _: Any ->
+                Player.updateTheme()
+            }
+        } catch (e: Exception) {
+            // registerListener might not be available, that's okay
+        }
     }
 }
