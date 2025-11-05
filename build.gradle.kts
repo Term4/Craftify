@@ -31,6 +31,21 @@ base {
     archivesName.set(mod_name)
 }
 
+// Configure Java toolchain based on Minecraft version
+val javaVersion = when {
+    project.platform.mcMinor >= 21 -> 21
+    project.platform.mcMinor == 20 && project.platform.mcPatch >= 5 -> 21
+    project.platform.mcMinor >= 18 -> 17
+    project.platform.mcMinor == 17 -> 16
+    else -> 8
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(javaVersion))
+    }
+}
+
 tasks.compileKotlin.setJvmDefault(if (platform.mcVersion >= 11400) "all" else "all-compatibility")
 loom.noServerRunConfigs()
 loom {
@@ -154,7 +169,7 @@ tasks {
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     }
     remapJar {
-        input.set(shadowJar.get().archiveFile)
+        inputFile.set(shadowJar.get().archiveFile)
         archiveClassifier.set("")
     }
     jar {

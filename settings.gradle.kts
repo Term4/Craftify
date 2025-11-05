@@ -11,7 +11,12 @@ pluginManagement {
     plugins {
         val egtVersion = "0.6.6"
         id("gg.essential.multi-version.root") version egtVersion
+        id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
     }
+}
+
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention")
 }
 
 val mod_name: String by settings

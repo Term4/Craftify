@@ -23,28 +23,24 @@ import kotlin.math.min
 
 class UIPlayer : UIRoundedRectangle(0f) {
 
-    init {
-        constrain {
-            height = 50.pixel()
-            width = 150.pixel()
-            y = 0.percent()
-            x = 0.percent()
-            color = ConfigColorConstraint("background")
-            radius = ThemeConfig.backgroundRadius.pixels()
-        }
+    // Helper function to get scaled pixel value
+    private fun Float.scaledPixel() = (this * Config.hudScale).pixel()
 
+    init {
+        updateDimensions()
+        
         onMouseEnter {
             enableEffect(OutlineEffect(ThemeConfig.borderColor, 1F, drawInsideChildren = true))
             if (Config.premiumControl) {
-                setHeight(63.pixel())
-                if (Config.anchorPoint.ordinal > 4) setY(Config.anchorPoint.getY(this) - 13.pixels())
+                setHeight(63f.scaledPixel())
+                if (Config.anchorPoint.ordinal > 4) setY(Config.anchorPoint.getY(this) - 13f.scaledPixel())
                 this.addChild(controls)
             }
         }
 
         onMouseLeave {
             removeEffect<OutlineEffect>()
-            setHeight(50.pixel())
+            setHeight(50f.scaledPixel())
             if (Config.anchorPoint.ordinal > 4) setY(Config.anchorPoint.getY(this))
             this.removeChild(controls)
         }
@@ -53,46 +49,57 @@ class UIPlayer : UIRoundedRectangle(0f) {
     private var imageUrl = ""
 
     private val image by UIBlock(VigilancePalette.getHighlight()).constrain {
-        height = 40.pixel()
-        width = 40.pixel()
-        x = 5.pixel()
-        y = 5.pixel()
+        height = 40f.scaledPixel()
+        width = 40f.scaledPixel()
+        x = 5f.scaledPixel()
+        y = 5f.scaledPixel()
     } childOf this
 
     private val info by UIContainer().constrain {
-        width = 95.pixel()
-        height = 40.pixel()
-        x = 50.pixel()
-        y = 5.pixel()
+        width = 95f.scaledPixel()
+        height = 40f.scaledPixel()
+        x = 50f.scaledPixel()
+        y = 5f.scaledPixel()
     } childOf this
 
     private val title by UITextMarquee(text = "Song Title").constrain {
         width = 100.percent()
-        height = 10.pixel()
+        height = 10f.scaledPixel()
         color = ConfigColorConstraint("title")
         fontProvider = ThemeFontProvider("title")
     } childOf info
 
     private val artist by lazy { UIWrappedText("Artists, here").constrain {
         width = 100.percent()
-        height = 10.pixel()
-        y = 12.pixel()
-        textScale = 0.5.pixel()
+        height = 10f.scaledPixel()
+        y = 12f.scaledPixel()
+        textScale = (0.5f * Config.hudScale).pixel()
         color = ConfigColorConstraint("artist")
         fontProvider = ThemeFontProvider("artist")
     } childOf info }
 
     private val progress by UIProgressBar().constrain {
         width = 100.percent()
-        height = 3.pixel()
-        y = 40.pixel() - 3.pixel()
+        height = 3f.scaledPixel()
+        y = (40f - 3f).scaledPixel()
     } childOf info
 
     private val controls by UIControls().constrain {
         width = ChildBasedSizeConstraint()
-        height = 10.pixels()
-        y = 50.pixel()
+        height = 10f.scaledPixel()
+        y = 50f.scaledPixel()
         x = CenterConstraint()
+    }
+    
+    private fun updateDimensions() {
+        constrain {
+            height = 50f.scaledPixel()
+            width = 150f.scaledPixel()
+            y = 0.percent()
+            x = 0.percent()
+            color = ConfigColorConstraint("background")
+            radius = ThemeConfig.backgroundRadius.pixels()
+        }
     }
 
     fun clientStop() {
@@ -117,8 +124,10 @@ class UIPlayer : UIRoundedRectangle(0f) {
                             UIImage(CompletableFuture.supplyAsync {
                                 MemoryImageCache.COVER_IMAGE.getOrSet(url) { url ->
                                     RenderUtils.getImage(url).let {
-                                        val scale = min(it.width / 40, it.height / 40)
-                                        it.getSubimage(it.width / 2 - 20 * scale, it.height / 2 - 20 * scale, 40 * scale, 40 * scale)
+                                        val targetSize = 40f * Config.hudScale
+                                        val scale = min(it.width / targetSize, it.height / targetSize)
+                                        val extractSize = (targetSize * scale).toInt()
+                                        it.getSubimage(it.width / 2 - extractSize / 2, it.height / 2 - extractSize / 2, extractSize, extractSize)
                                     }
                                 }
                             }, EmptyImageProvider, EmptyImageProvider).constrain {
@@ -135,17 +144,34 @@ class UIPlayer : UIRoundedRectangle(0f) {
     }
 
     fun updateTheme() {
+        updateDimensions()
         progress.updateTheme()
         controls.updateTheme()
         if (ThemeConfig.hideImage) {
             this.removeChild(image)
-            info.setX(5.pixel())
-            this.setWidth(105.pixel())
+            info.setX(5f.scaledPixel())
+            this.setWidth(105f.scaledPixel())
         } else {
             this.addChild(image)
-            info.setX(50.pixel())
-            this.setWidth(150.pixel())
+            info.setX(50f.scaledPixel())
+            this.setWidth(150f.scaledPixel())
         }
+        // Update image and info dimensions
+        image.setWidth(40f.scaledPixel())
+        image.setHeight(40f.scaledPixel())
+        image.setX(5f.scaledPixel())
+        image.setY(5f.scaledPixel())
+        info.setWidth(95f.scaledPixel())
+        info.setHeight(40f.scaledPixel())
+        info.setY(5f.scaledPixel())
+        title.setHeight(10f.scaledPixel())
+        artist.setHeight(10f.scaledPixel())
+        artist.setY(12f.scaledPixel())
+        artist.setTextScale((0.5f * Config.hudScale).pixel())
+        progress.setHeight(3f.scaledPixel())
+        progress.setY((40f - 3f).scaledPixel())
+        controls.setHeight(10f.scaledPixel())
+        controls.setY(50f.scaledPixel())
         this.setRadius(ThemeConfig.backgroundRadius.pixels())
     }
 

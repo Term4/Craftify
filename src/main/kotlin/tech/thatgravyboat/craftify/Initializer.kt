@@ -13,6 +13,7 @@ import tech.thatgravyboat.craftify.services.ServiceHelper.close
 import tech.thatgravyboat.craftify.services.ServiceHelper.setup
 import tech.thatgravyboat.craftify.services.ServiceType
 import tech.thatgravyboat.craftify.services.ads.AdManager
+import tech.thatgravyboat.craftify.services.config.ServiceConfig
 import tech.thatgravyboat.craftify.services.update.Updater
 import tech.thatgravyboat.craftify.ssl.FixSSL
 import tech.thatgravyboat.craftify.ui.Player
@@ -48,6 +49,8 @@ object Initializer {
         //#if MODERN==0
         tech.thatgravyboat.cosmetics.Cosmetics.initialize()
         //#endif
+        // Load service configs (Spotify tokens, etc.) before creating services
+        ServiceConfig.load()
         reloadService()
 
         skipForward.register()

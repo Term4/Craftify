@@ -64,10 +64,13 @@ object Player {
     }
 
     fun changePosition(position: Anchor) {
+        // Store the position so it's applied when player is created
+        // Also update immediately if player already exists
         player?.apply {
             setX(position.getX(this@apply))
             setY(position.getY(this@apply))
         }
+        // Update will be applied when checkAndInitPlayer() is called
     }
 
     fun onRender(matrix: UMatrixStack) {

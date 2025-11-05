@@ -29,13 +29,36 @@ inline fun <reified T : Enum<T>> CategoryPropertyBuilder.enum(
     description: String,
     crossinline onLoad: ((T) -> Unit) = {  }
 ) {
-    val property = ReadWritePropertyValue({ field.get().ordinal }, { runCatching {
-        val enum = enumValues<T>()[it as Int]
-        field.set(enum)
-        onLoad(enum)
-    } })
+    // Create an anonymous object with an Int property that syncs with the enum field
+    // This allows OneConfig to recognize it as a standard property
+    val enumField = field  // Store reference to avoid naming conflict
+    val ordinalProperty = object {
+        var ordinal: Int = enumField.get().ordinal
+            get() {
+                field = enumField.get().ordinal
+                return field
+            }
+            set(value) {
+                field = value.coerceIn(0, enumValues<T>().size - 1)
+                val enum = enumValues<T>()[field]
+                enumField.set(enum)
+                onLoad(enum)
+            }
+    }
+    
+    // Use the property method with KPropertyBackedPropertyValue for OneConfig compatibility
+    // We need to access the property through reflection to get a KMutableProperty0
     val options = enumValues<T>().map(Any::toString)
-    property<Int>(property, PropertyType.SELECTOR, name, description, options = options)
+    
+    // Use ReadWritePropertyValue but with a wrapper that OneConfig might recognize
+    // Actually, let's try using the property method directly with the ordinal property
+    val propertyValue = ReadWritePropertyValue(
+        { ordinalProperty.ordinal },
+        { value -> 
+            ordinalProperty.ordinal = (value as? Number)?.toInt() ?: ordinalProperty.ordinal
+        }
+    )
+    property<Int>(propertyValue, PropertyType.SELECTOR, name, description, options = options)
 }
 
 fun JsonObject.getString(key: String): String? = this.get(key)?.takeIf { it is JsonPrimitive && it.isString }?.asString

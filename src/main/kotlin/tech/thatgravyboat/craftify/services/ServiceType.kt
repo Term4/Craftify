@@ -18,7 +18,15 @@ enum class ServiceType(val type: KClass<out BaseService>, val id: String, val fa
     CIDER(AppleService::class, "cider", { AppleService() }),
     CIDER2(CiderService::class, "cider2", { CiderService() }),
     YOUTUBE(YoutubeService::class, "ytmd", { YoutubeServiceV2(YoutubeServiceConfig.token) }),
-    SPOTIFY(SpotifyService::class, "spotify", { SpotifyService(SpotifyServiceConfig.auth).also(ServiceHelper::setupSpotify) }),
+    SPOTIFY(SpotifyService::class, "spotify", { 
+        // Auto-refresh token on startup if refresh token exists and auth token is missing/expired
+        // This ensures the connection persists across game launches
+        if (SpotifyServiceConfig.refresh.isNotBlank()) {
+            // Try to refresh the token to get a fresh access token
+            ServiceHelper.loginToSpotify("refresh", SpotifyServiceConfig.refresh)
+        }
+        SpotifyService(SpotifyServiceConfig.auth).also(ServiceHelper::setupSpotify) 
+    }),
     BEEFWEB(FoobarService::class, "beefweb", { FoobarService(BeefwebServiceConfig.port, true) }),
     TIDAL(TidalService::class, "tidal", { TidalService() }),
     ;
