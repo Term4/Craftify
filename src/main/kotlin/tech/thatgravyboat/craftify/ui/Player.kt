@@ -25,7 +25,61 @@ object Player {
     private fun checkAndInitPlayer() {
         if (player == null) {
             player = UIPlayer() childOf window
-            changePosition(Config.anchorPoint)
+            
+            // Ensure we're using the correct anchor point from config
+            // First, try to read from config file directly to ensure we have the correct value
+            var anchorOrdinalToUse: Int? = null
+            val configFile = java.io.File("./config/craftify.toml")
+            if (configFile.exists()) {
+                try {
+                    val content = configFile.readText()
+                    val anchorPatterns = listOf(
+                        Regex("anchor_point\\s*=\\s*(\\d+)"),
+                        Regex("\"anchor_point\"\\s*=\\s*(\\d+)"),
+                        Regex("'anchor_point'\\s*=\\s*(\\d+)"),
+                        Regex("anchor_point\\s*=\\s*\"(\\d+)\""),
+                        Regex("anchor_point\\s*=\\s*'(\\d+)'")
+                    )
+                    for (pattern in anchorPatterns) {
+                        val match = pattern.find(content)
+                        if (match != null) {
+                            anchorOrdinalToUse = match.groupValues[1].toIntOrNull()
+                            break
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Ignore errors reading file
+                }
+            }
+            
+            // If we couldn't read from file or file doesn't exist, use the current config value
+            if (anchorOrdinalToUse == null) {
+                val currentAnchorOrdinal = try {
+                    Config::class.java.getDeclaredField("anchorPointOrdinal").apply { isAccessible = true }.getInt(Config)
+                } catch (e: Exception) {
+                    Config.anchorPointOrdinal
+                }
+                anchorOrdinalToUse = currentAnchorOrdinal
+            }
+            
+            val correctAnchor = Anchor.values()[anchorOrdinalToUse.coerceIn(0, Anchor.values().size - 1)]
+            // Ensure config is synced with the correct value
+            if (Config.anchorPoint != correctAnchor || Config.anchorPointOrdinal != anchorOrdinalToUse) {
+                // Update the ordinal field if needed
+                if (Config.anchorPointOrdinal != anchorOrdinalToUse) {
+                    try {
+                        val field = Config::class.java.getDeclaredField("anchorPointOrdinal").apply { isAccessible = true }
+                        field.setInt(Config, anchorOrdinalToUse)
+                    } catch (e: Exception) {
+                        Config.anchorPointOrdinal = anchorOrdinalToUse
+                    }
+                }
+                Config.anchorPoint = correctAnchor
+                Config.xOffset = correctAnchor.getDefaultXOffset()
+                Config.yOffset = correctAnchor.getDefaultYOffset()
+            }
+            
+            changePosition(correctAnchor)
             updateTheme()
             Initializer.getAPI()?.getState()?.let {
                 player?.updateState(it)

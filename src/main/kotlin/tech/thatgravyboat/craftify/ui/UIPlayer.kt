@@ -27,13 +27,59 @@ class UIPlayer : UIRoundedRectangle(0f) {
     private fun Float.scaledPixel() = (this * Config.hudScale).pixel()
 
     init {
-        updateDimensions()
+        // Read anchor point from config file BEFORE calling updateDimensions()
+        // This ensures we set the correct position from the start
+        val configFile = java.io.File("./config/craftify.toml")
+        var anchorOrdinalToUse: Int? = null
+        if (configFile.exists()) {
+            try {
+                val content = configFile.readText()
+                val anchorPatterns = listOf(
+                    Regex("anchor_point\\s*=\\s*(\\d+)"),
+                    Regex("\"anchor_point\"\\s*=\\s*(\\d+)"),
+                    Regex("'anchor_point'\\s*=\\s*(\\d+)"),
+                    Regex("anchor_point\\s*=\\s*\"(\\d+)\""),
+                    Regex("anchor_point\\s*=\\s*'(\\d+)'")
+                )
+                for (pattern in anchorPatterns) {
+                    val match = pattern.find(content)
+                    if (match != null) {
+                        anchorOrdinalToUse = match.groupValues[1].toIntOrNull()
+                        break
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore errors
+            }
+        }
+        
+        // If couldn't read from file, use config object
+        if (anchorOrdinalToUse == null) {
+            anchorOrdinalToUse = try {
+                Config::class.java.getDeclaredField("anchorPointOrdinal").apply { isAccessible = true }.getInt(Config)
+            } catch (e: Exception) {
+                Config.anchorPointOrdinal
+            }
+        }
+        
+        val anchorToUse = Anchor.values()[(anchorOrdinalToUse ?: 0).coerceIn(0, Anchor.values().size - 1)]
+        
+        // Update dimensions AND set position based on anchor point in one call
+        constrain {
+            height = 50f.scaledPixel()
+            width = 150f.scaledPixel()
+            // Set position based on anchor point, not 0.percent()
+            x = anchorToUse.getX(this@UIPlayer)
+            y = anchorToUse.getY(this@UIPlayer)
+            color = ConfigColorConstraint("background")
+            radius = ThemeConfig.backgroundRadius.pixels()
+        }
         
         onMouseEnter {
             enableEffect(OutlineEffect(ThemeConfig.borderColor, 1F, drawInsideChildren = true))
             if (Config.premiumControl) {
                 setHeight(63f.scaledPixel())
-                if (Config.anchorPoint.ordinal > 4) setY(Config.anchorPoint.getY(this) - 13f.scaledPixel())
+                if (anchorToUse.ordinal > 4) setY(anchorToUse.getY(this) - 13f.scaledPixel())
                 this.addChild(controls)
             }
         }
@@ -41,7 +87,7 @@ class UIPlayer : UIRoundedRectangle(0f) {
         onMouseLeave {
             removeEffect<OutlineEffect>()
             setHeight(50f.scaledPixel())
-            if (Config.anchorPoint.ordinal > 4) setY(Config.anchorPoint.getY(this))
+            if (anchorToUse.ordinal > 4) setY(anchorToUse.getY(this))
             this.removeChild(controls)
         }
     }
@@ -92,11 +138,48 @@ class UIPlayer : UIRoundedRectangle(0f) {
     }
     
     private fun updateDimensions() {
+        // Read anchor point from config to preserve position
+        val configFile = java.io.File("./config/craftify.toml")
+        var anchorOrdinalToUse: Int? = null
+        if (configFile.exists()) {
+            try {
+                val content = configFile.readText()
+                val anchorPatterns = listOf(
+                    Regex("anchor_point\\s*=\\s*(\\d+)"),
+                    Regex("\"anchor_point\"\\s*=\\s*(\\d+)"),
+                    Regex("'anchor_point'\\s*=\\s*(\\d+)"),
+                    Regex("anchor_point\\s*=\\s*\"(\\d+)\""),
+                    Regex("anchor_point\\s*=\\s*'(\\d+)'")
+                )
+                for (pattern in anchorPatterns) {
+                    val match = pattern.find(content)
+                    if (match != null) {
+                        anchorOrdinalToUse = match.groupValues[1].toIntOrNull()
+                        break
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore errors
+            }
+        }
+        
+        // If couldn't read from file, use config object
+        if (anchorOrdinalToUse == null) {
+            anchorOrdinalToUse = try {
+                Config::class.java.getDeclaredField("anchorPointOrdinal").apply { isAccessible = true }.getInt(Config)
+            } catch (e: Exception) {
+                Config.anchorPointOrdinal
+            }
+        }
+        
+        val anchorToUse = Anchor.values()[(anchorOrdinalToUse ?: 0).coerceIn(0, Anchor.values().size - 1)]
+        
         constrain {
             height = 50f.scaledPixel()
             width = 150f.scaledPixel()
-            y = 0.percent()
-            x = 0.percent()
+            // Preserve anchor point position, don't reset to 0.percent()
+            x = anchorToUse.getX(this@UIPlayer)
+            y = anchorToUse.getY(this@UIPlayer)
             color = ConfigColorConstraint("background")
             radius = ThemeConfig.backgroundRadius.pixels()
         }
