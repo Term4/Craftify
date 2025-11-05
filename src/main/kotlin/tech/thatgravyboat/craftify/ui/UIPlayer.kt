@@ -36,6 +36,23 @@ class UIPlayer : UIRoundedRectangle(0f) {
     var isEditMode = false // Edit mode - when true, dragging is enabled; when false, controls work normally
     private var savedPixelPosition: Pair<Float, Float>? = null // Saved pixel position from dragging (null means use anchor point)
     private var originalY: Float? = null // Store original Y position for hover animations
+    private var cachedAnchorOrdinal: Int? = null // Cached anchor ordinal to avoid repeated file reads
+    
+    // Helper function to get current anchor ordinal from Config (no file I/O, uses reflection which is fast)
+    private fun getCurrentAnchorOrdinal(): Int {
+        // Always read from Config directly (reflection is fast, file I/O was the bottleneck)
+        // Check if Config value has changed and update cache
+        val currentValue = try {
+            Config::class.java.getDeclaredField("anchorPointOrdinal").apply { isAccessible = true }.getInt(Config)
+        } catch (e: Exception) {
+            Config.anchorPointOrdinal
+        }
+        // Update cache if it changed
+        if (cachedAnchorOrdinal != currentValue) {
+            cachedAnchorOrdinal = currentValue
+        }
+        return currentValue
+    }
 
     init {
         // Read anchor point and offsets from config file BEFORE calling updateDimensions()
@@ -86,6 +103,9 @@ class UIPlayer : UIRoundedRectangle(0f) {
             }
         }
         
+        // Cache the anchor ordinal to avoid future file reads
+        cachedAnchorOrdinal = anchorOrdinalToUse
+        
         val anchorToUse = Anchor.values()[(anchorOrdinalToUse ?: 0).coerceIn(0, Anchor.values().size - 1)]
         
         // If we have saved offsets from dragging, calculate and use the pixel position
@@ -133,8 +153,9 @@ class UIPlayer : UIRoundedRectangle(0f) {
         
         onMouseEnter {
             // Store original Y position if not already stored
+            // If we have a saved pixel position, use that as the base; otherwise use current position
             if (originalY == null) {
-                originalY = getTop()
+                originalY = savedPixelPosition?.second ?: getTop()
             }
             
             // Show different border color when in edit mode
@@ -149,16 +170,21 @@ class UIPlayer : UIRoundedRectangle(0f) {
                 val expandedHeight = 63f.scaledPixel()
                 setHeight(expandedHeight)
                 // Adjust Y position to make controls "pop out" - move up to create a visual pop effect
-                val storedY = originalY ?: getTop()
+                // Use savedPixelPosition if available, otherwise use originalY or current position
+                val baseY = savedPixelPosition?.second ?: originalY ?: getTop()
                 // Calculate pixel offsets (not constraints)
                 val popOffsetPx = 8f * Config.hudScale // Amount to pop out in pixels
                 val controlOffsetPx = 13f * Config.hudScale // Height of controls area in pixels
-                val newY = if (anchorToUse.ordinal > 4) {
+                
+                // Determine which anchor to use for pop direction (use cached value, no file I/O)
+                val currentAnchorOrdinal = getCurrentAnchorOrdinal()
+                val currentAnchor = Anchor.values()[currentAnchorOrdinal.coerceIn(0, Anchor.values().size - 1)]
+                val newY = if (currentAnchor.ordinal > 4) {
                     // Bottom anchors: move up to pop out (controls appear below, making them more visible)
-                    storedY - controlOffsetPx - popOffsetPx
+                    baseY - controlOffsetPx - popOffsetPx
                 } else {
                     // Top/middle anchors: move down to pop out (controls appear below, making them more visible)
-                    storedY - popOffsetPx
+                    baseY - popOffsetPx
                 }
                 setY(newY.pixels())
                 this.addChild(controls)
@@ -169,22 +195,35 @@ class UIPlayer : UIRoundedRectangle(0f) {
         onMouseLeave {
             removeEffect<OutlineEffect>()
             setHeight(50f.scaledPixel())
-            // Restore original Y position
-            val storedY = originalY
-            if (storedY != null) {
-                setY(storedY.pixels())
+            
+            // Priority 1: If we have a saved pixel position from dragging, use it
+            if (savedPixelPosition != null) {
+                // Restore both X and Y to ensure consistency
+                setX(savedPixelPosition!!.first.pixels())
+                setY(savedPixelPosition!!.second.pixels())
                 originalY = null // Reset for next hover
-            } else {
-                // Fallback: calculate restore position
-                val currentY = getTop()
-                val popOffset = 8f * Config.hudScale // In pixels
-                val controlOffset = 13f * Config.hudScale // In pixels
-                val restoredY = if (anchorToUse.ordinal > 4) {
-                    currentY + controlOffset + popOffset
+            }
+            // Priority 2: If we stored originalY when mouse entered, restore it
+            else {
+                val storedY = originalY
+                if (storedY != null) {
+                    setY(storedY.pixels())
+                    originalY = null // Reset for next hover
                 } else {
-                    currentY + popOffset
+                    // Priority 3: Fallback - calculate restore position based on current anchor
+                    // Use cached anchor ordinal (no file I/O)
+                    val currentAnchorOrdinal = getCurrentAnchorOrdinal()
+                    val currentAnchor = Anchor.values()[currentAnchorOrdinal.coerceIn(0, Anchor.values().size - 1)]
+                    val currentY = getTop()
+                    val popOffset = 8f * Config.hudScale // In pixels
+                    val controlOffset = 13f * Config.hudScale // In pixels
+                    val restoredY = if (currentAnchor.ordinal > 4) {
+                        currentY + controlOffset + popOffset
+                    } else {
+                        currentY + popOffset
+                    }
+                    setY(restoredY.pixels())
                 }
-                setY(restoredY.pixels())
             }
             this.removeChild(controls)
         }
@@ -294,41 +333,9 @@ class UIPlayer : UIRoundedRectangle(0f) {
             return
         }
         
-        // Read anchor point from config to preserve position
-        val configFile = java.io.File("./config/craftify.toml")
-        var anchorOrdinalToUse: Int? = null
-        if (configFile.exists()) {
-            try {
-                val content = configFile.readText()
-                val anchorPatterns = listOf(
-                    Regex("anchor_point\\s*=\\s*(\\d+)"),
-                    Regex("\"anchor_point\"\\s*=\\s*(\\d+)"),
-                    Regex("'anchor_point'\\s*=\\s*(\\d+)"),
-                    Regex("anchor_point\\s*=\\s*\"(\\d+)\""),
-                    Regex("anchor_point\\s*=\\s*'(\\d+)'")
-                )
-                for (pattern in anchorPatterns) {
-                    val match = pattern.find(content)
-                    if (match != null) {
-                        anchorOrdinalToUse = match.groupValues[1].toIntOrNull()
-                        break
-                    }
-                }
-            } catch (e: Exception) {
-                // Ignore errors
-            }
-        }
-        
-        // If couldn't read from file, use config object
-        if (anchorOrdinalToUse == null) {
-            anchorOrdinalToUse = try {
-                Config::class.java.getDeclaredField("anchorPointOrdinal").apply { isAccessible = true }.getInt(Config)
-            } catch (e: Exception) {
-                Config.anchorPointOrdinal
-            }
-        }
-        
-        val anchorToUse = Anchor.values()[(anchorOrdinalToUse ?: 0).coerceIn(0, Anchor.values().size - 1)]
+        // Get anchor point from cached value (no file I/O for performance)
+        val anchorOrdinalToUse = getCurrentAnchorOrdinal()
+        val anchorToUse = Anchor.values()[anchorOrdinalToUse.coerceIn(0, Anchor.values().size - 1)]
         
         // Use anchor point positioning (no saved pixel position)
         constrain {
@@ -564,6 +571,9 @@ class UIPlayer : UIRoundedRectangle(0f) {
         
         Config.anchorPointOrdinal = closestAnchor.ordinal
         Config.anchorPoint = closestAnchor
+        
+        // Update cached anchor ordinal when it changes
+        cachedAnchorOrdinal = closestAnchor.ordinal
         
         // Only save if position actually changed to avoid unnecessary updates and position resets
         if (oldAnchorOrdinal != closestAnchor.ordinal || 
