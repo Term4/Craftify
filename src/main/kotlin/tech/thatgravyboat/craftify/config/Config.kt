@@ -384,6 +384,14 @@ object Config : Vigilant(File("./config/craftify.toml")) {
                 markDirty()
                 writeData()
             }
+            registerListener("premiumControl") { _: Any ->
+                markDirty()
+                writeData()
+            }
+            registerListener("streamerMode") { _: Any ->
+                markDirty()
+                writeData()
+            }
         } catch (e: Exception) {
             // registerListener might not be available, that's okay
         }

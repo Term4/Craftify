@@ -1,6 +1,8 @@
 package tech.thatgravyboat.craftify.ui
 
 import gg.essential.elementa.components.UIContainer
+import gg.essential.elementa.constraints.CenterConstraint
+import gg.essential.elementa.constraints.ChildBasedSizeConstraint
 import gg.essential.elementa.constraints.SiblingConstraint
 import gg.essential.elementa.dsl.*
 import gg.essential.universal.ChatColor
@@ -37,6 +39,14 @@ class UIControls(
     private val settings = "https://files.teamresourceful.com/r/9DzwrP.png"
     private val edit = "https://files.teamresourceful.com/r/N3c8xm.png" // Using position icon as edit icon for now
 
+    // Container for cleaner button layout with padding
+    private val buttonsContainer by UIContainer().constrain {
+        width = ChildBasedSizeConstraint()
+        height = 100.percent()
+        x = CenterConstraint()
+        y = CenterConstraint()
+    } childOf this
+    
     // Edit mode toggle button - appears first when hovered
     // Color=true makes it a toggle button that shows state visually
     private val editButton by UIButton(URL(edit), URL(edit), color = true, click = {
@@ -45,8 +55,8 @@ class UIControls(
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 1f) // Reduced padding to make controls less crowded
-    } childOf this
+        x = SiblingConstraint(padding = 1.5f) // Slightly more padding for cleaner look
+    } childOf buttonsContainer
 
     // Position button removed - edit mode with drag replaces it
     // private val positionButton by UIButton(URL(position), URL(position), click = {
@@ -64,8 +74,8 @@ class UIControls(
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 1f) // Reduced padding
-    } childOf this
+        x = SiblingConstraint(padding = 1.5f) // Slightly more padding for cleaner look
+    } childOf buttonsContainer
 
     private val shuffleButton by UIButton(URL(shuffle), URL(shuffle), true, click = {
         Initializer.getAPI()?.toggleShuffle() == true
@@ -73,16 +83,16 @@ class UIControls(
         width = 10.pixels()
         height = 10.pixels()
         y = 0.pixels()
-        x = SiblingConstraint(padding = 1f) // Reduced padding
-    } childOf this
+        x = SiblingConstraint(padding = 1.5f) // Slightly more padding for cleaner look
+    } childOf buttonsContainer
 
     private val prevButton by UIButton(URL(prev), URL(prev), click = {
         Initializer.getAPI()?.prev() == true
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 1f) // Reduced padding
-    } childOf this
+        x = SiblingConstraint(padding = 1.5f) // Slightly more padding for cleaner look
+    } childOf buttonsContainer
 
     private val playButton by UIButton(URL(play), URL(pause), click = { state ->
         Player.stopClient()
@@ -90,24 +100,24 @@ class UIControls(
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 1f) // Reduced padding
-    } childOf this
+        x = SiblingConstraint(padding = 1.5f) // Slightly more padding for cleaner look
+    } childOf buttonsContainer
 
     private val nextButton by UIButton(URL(next), URL(next), click = {
         Initializer.getAPI()?.next() == true
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 1f) // Reduced padding
-    } childOf this
+        x = SiblingConstraint(padding = 1.5f) // Slightly more padding for cleaner look
+    } childOf buttonsContainer
 
     private val repeatButton by UIButton(URL(repeat), URL(repeat), true, click = { _ ->
         Initializer.getAPI()?.toggleRepeat() == true
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 1f) // Reduced padding
-    } childOf this
+        x = SiblingConstraint(padding = 1.5f) // Slightly more padding for cleaner look
+    } childOf buttonsContainer
 
     private val externalButton by UIButton(URL(external), URL(external), click = {
         Initializer.getAPI()?.getState()?.let {
@@ -121,8 +131,8 @@ class UIControls(
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 1f) // Reduced padding
-    } childOf this
+        x = SiblingConstraint(padding = 1.5f) // Slightly more padding for cleaner look
+    } childOf buttonsContainer
 
     private val volumeButton by UIButton(URL(volume), URL(volume), click = {
         if (ServiceHelper.doesSupport(ServiceFunction.VOLUME)) {
@@ -134,8 +144,8 @@ class UIControls(
     }).constrain {
         width = 10.pixels()
         height = 10.pixels()
-        x = SiblingConstraint(padding = 1f) // Reduced padding
-    } childOf this
+        x = SiblingConstraint(padding = 1.5f) // Slightly more padding for cleaner look
+    } childOf buttonsContainer
 
     fun updateState(state: State) {
         repeatButton.updateState(state.player.repeat != RepeatState.OFF)
@@ -175,6 +185,8 @@ class UIControls(
         } else {
             button.updateImage(notNullNotBlankOrElse(image, default), notNullNotBlankOrElse(ogimage, ogdefault))
         }
+        // Force update button colors after image update to ensure correct initial colors
+        button.updateTheme()
         return activeButtons + 1
     }
 

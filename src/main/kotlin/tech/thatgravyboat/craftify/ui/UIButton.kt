@@ -16,6 +16,9 @@ class UIButton(private var original: URL, private var clicked: URL, private val 
     private var icon = createButtonImageFromUrl(original)
 
     init {
+        // Set initial color immediately
+        icon.setColor(if (state && color) ThemeConfig.selectedControlColor else ThemeConfig.controlColor)
+        
         onMouseClick { event ->
             if (event.mouseButton == 0) {
                 if (click != null && click(this, state)) {
@@ -39,6 +42,11 @@ class UIButton(private var original: URL, private var clicked: URL, private val 
             updateImage(clicked, original)
             icon.setColor(if (state && color) ThemeConfig.selectedControlColor else ThemeConfig.controlColor)
         }
+    }
+    
+    fun updateTheme() {
+        // Update button color to match current state and theme
+        icon.setColor(if (state && color) ThemeConfig.selectedControlColor else ThemeConfig.controlColor)
     }
 
     private fun updateStateWithHover(state: Boolean) {
