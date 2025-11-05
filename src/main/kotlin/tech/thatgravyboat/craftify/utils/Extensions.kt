@@ -19,6 +19,9 @@ fun CategoryPropertyBuilder.boolean(field: KMutableProperty0<Boolean>, name: Str
     switch(field, name, description)
 }
 
+// Removed custom decimalSlider - use standard Vigilant decimalSlider instead
+// Bounds are handled in the property setter
+
 inline fun <reified T : PropertyInfo> CategoryPropertyBuilder.prop(field: KMutableProperty0<*>, name: String, description: String) {
     custom(field, T::class, name, description)
 }

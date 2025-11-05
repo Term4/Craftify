@@ -21,7 +21,8 @@ enum class RenderType {
             if (gui == null || gui is MCEscMenu) {
                 return !isDebugGuiOpened()
             }
-            return gui is MCChatMenu
+            // Hide when inventory or chat is open (non-intrusive)
+            return gui !is MCInventoryMenu && gui !is MCChatMenu
         }
     },
 

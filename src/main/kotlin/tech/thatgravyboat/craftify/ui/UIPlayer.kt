@@ -111,6 +111,7 @@ class UIPlayer : UIRoundedRectangle(0f) {
     private val title by UITextMarquee(text = "Song Title").constrain {
         width = 100.percent()
         height = 10f.scaledPixel()
+        textScale = (0.75f * Config.hudScale).pixel()
         color = ConfigColorConstraint("title")
         fontProvider = ThemeFontProvider("title")
     } childOf info
@@ -248,6 +249,7 @@ class UIPlayer : UIRoundedRectangle(0f) {
         info.setHeight(40f.scaledPixel())
         info.setY(5f.scaledPixel())
         title.setHeight(10f.scaledPixel())
+        title.setTextScale((0.75f * Config.hudScale).pixel())
         artist.setHeight(10f.scaledPixel())
         artist.setY(12f.scaledPixel())
         artist.setTextScale((0.5f * Config.hudScale).pixel())
