@@ -6,6 +6,7 @@ import gg.essential.elementa.dsl.width
 import gg.essential.elementa.state.BasicState
 import gg.essential.universal.UGraphics
 import gg.essential.universal.UMatrixStack
+import tech.thatgravyboat.craftify.config.Config
 
 open class UITextMarquee(private val frames: Float = .5f, text: String) : UIComponent() {
     private val textState = BasicState("$text   ").map { it }
@@ -13,7 +14,6 @@ open class UITextMarquee(private val frames: Float = .5f, text: String) : UIComp
     private var shouldAnimate = false
     private var elapsedFrames = 0
     private var totalFrames = 0
-
     private fun getText() = textState.get()
     private fun setText(text: String) = apply { textState.set(text) }
 
@@ -50,9 +50,21 @@ open class UITextMarquee(private val frames: Float = .5f, text: String) : UIComp
 
         val formattedText = splitText(text)
 
+        // Try using base point size 10f and textScale as the scale factor
+        // Maybe drawString expects originalPointSize=10f and scale=textScale
+        val basePointSize = 10f
+        val textScale = getTextScale()
+        // Convert textScale from constraint to scale factor
+        // If constraint is (0.75 * hudScale).pixel(), textScale might be 0.75 * hudScale
+        // So scale factor = textScale / 0.75 = hudScale
+        // But we also need the 0.75 multiplier, so: scale = textScale
+        // Actually, let's try: originalPointSize = 10f, scale = textScale / 10f to normalize
+        // Or simpler: use 10f * 0.75f as base and hudScale as scale
+        val scaleFactor = Config.hudScale
+        val pointSize = basePointSize * 0.75f
         getFontProvider().drawString(
             matrixStack, formattedText, color, x, y,
-            10f, 1.0f, true, null
+            pointSize, scaleFactor, true, null
         )
         super.draw(matrixStack)
     }
