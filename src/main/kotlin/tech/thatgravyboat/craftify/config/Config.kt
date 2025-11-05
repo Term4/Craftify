@@ -71,7 +71,20 @@ object Config : Vigilant(File("./config/craftify.toml")) {
             field = value.coerceIn(0, DisplayMode.values().size - 1)
             displayMode = DisplayMode.values()[field]
         }
+    @Property(
+        type = PropertyType.SWITCH,
+        name = "Controls",
+        category = "Rendering",
+        description = "Will allow you to pause/play, skip forward and backwards, repeat, and shuffle the music in game. (Requires Spotify Premium)"
+    )
     var premiumControl = false
+    
+    @Property(
+        type = PropertyType.SWITCH,
+        name = "Streamer Mode",
+        category = "Rendering",
+        description = "Will mark the overlay as an overlay in OBS, meaning if you turn off show overlays it won't be shown.\nThis requires the obs-overlay mod to be installed."
+    )
     var streamerMode = false
     var xOffset = 0f
     var yOffset = 0f
@@ -190,8 +203,8 @@ object Config : Vigilant(File("./config/craftify.toml")) {
             } catch (e: Exception) {
                 // Fallback - register manually
             }
-            boolean(::premiumControl, "Controls", "Will allow you to pause/play, skip forward and backwards, repeat, and shuffle the music in game. (Requires Spotify Premium)")
-            boolean(::streamerMode, "Streamer Mode", "Will mark the overlay as an overlay in OBS, meaning if you turn off show overlays it won't be shown.\nThis requires the obs-overlay mod to be installed.")
+            // premiumControl and streamerMode are registered via @Property annotations above,
+            // so no need to register them manually here.
             
             // backgroundColor and hudScale are registered via @Property annotations above for OneConfig compatibility
             // No need to register them manually here - Vigilant will handle them

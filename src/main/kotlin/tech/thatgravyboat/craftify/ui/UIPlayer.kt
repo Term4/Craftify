@@ -34,12 +34,15 @@ class UIPlayer : UIRoundedRectangle(0f) {
     private var dragStartComponentPos: Pair<Float, Float>? = null // Initial component screen position when drag started
     var isDragging = false // Made public so Player can check if dragging
     var isEditMode = false // Edit mode - when true, dragging is enabled; when false, controls work normally
+    private var savedPixelPosition: Pair<Float, Float>? = null // Saved pixel position from dragging (null means use anchor point)
 
     init {
-        // Read anchor point from config file BEFORE calling updateDimensions()
+        // Read anchor point and offsets from config file BEFORE calling updateDimensions()
         // This ensures we set the correct position from the start
         val configFile = java.io.File("./config/craftify.toml")
         var anchorOrdinalToUse: Int? = null
+        var xOffsetFromFile: Float? = null
+        var yOffsetFromFile: Float? = null
         if (configFile.exists()) {
             try {
                 val content = configFile.readText()
@@ -57,6 +60,17 @@ class UIPlayer : UIRoundedRectangle(0f) {
                         break
                     }
                 }
+                // Also read xOffset and yOffset to restore dragged position
+                val xOffsetPattern = Regex("xOffset\\s*=\\s*([\\d.]+)")
+                val xOffsetMatch = xOffsetPattern.find(content)
+                if (xOffsetMatch != null) {
+                    xOffsetFromFile = xOffsetMatch.groupValues[1].toFloatOrNull()
+                }
+                val yOffsetPattern = Regex("yOffset\\s*=\\s*([\\d.]+)")
+                val yOffsetMatch = yOffsetPattern.find(content)
+                if (yOffsetMatch != null) {
+                    yOffsetFromFile = yOffsetMatch.groupValues[1].toFloatOrNull()
+                }
             } catch (e: Exception) {
                 // Ignore errors
             }
@@ -73,15 +87,47 @@ class UIPlayer : UIRoundedRectangle(0f) {
         
         val anchorToUse = Anchor.values()[(anchorOrdinalToUse ?: 0).coerceIn(0, Anchor.values().size - 1)]
         
-        // Update dimensions AND set position based on anchor point in one call
-        constrain {
-            height = 50f.scaledPixel()
-            width = 150f.scaledPixel()
-            // Set position based on anchor point, not 0.percent()
-            x = anchorToUse.getX(this@UIPlayer)
-            y = anchorToUse.getY(this@UIPlayer)
-            color = ConfigColorConstraint("background")
-            radius = ThemeConfig.backgroundRadius.pixels()
+        // If we have saved offsets from dragging, calculate and use the pixel position
+        if (xOffsetFromFile != null && yOffsetFromFile != null) {
+            // Calculate pixel position from offsets
+            val currentWidth = if (ThemeConfig.hideImage) 105f * Config.hudScale else 150f * Config.hudScale
+            val currentHeight = 50f * Config.hudScale
+            val centerX = xOffsetFromFile * UResolution.scaledWidth
+            val centerY = yOffsetFromFile * UResolution.scaledHeight
+            val pixelX = (centerX - currentWidth / 2).coerceIn(0f, UResolution.scaledWidth - currentWidth)
+            val pixelY = (centerY - currentHeight / 2).coerceIn(0f, UResolution.scaledHeight - currentHeight)
+            
+            // Save this pixel position for future updates (only on first init, not every update)
+            if (savedPixelPosition == null) {
+                savedPixelPosition = pixelX to pixelY
+            }
+            
+            // Always use saved pixel position if available, otherwise use calculated position
+            val finalPos = savedPixelPosition ?: (pixelX to pixelY)
+            
+            constrain {
+                height = 50f.scaledPixel()
+                width = 150f.scaledPixel()
+                x = finalPos.first.pixels()
+                y = finalPos.second.pixels()
+                color = ConfigColorConstraint("background")
+                radius = ThemeConfig.backgroundRadius.pixels()
+            }
+        } else {
+            // No saved offsets - use anchor point positioning
+            // Clear savedPixelPosition to use anchor-based positioning
+            savedPixelPosition = null
+            
+            // Update dimensions AND set position based on anchor point in one call
+            constrain {
+                height = 50f.scaledPixel()
+                width = 150f.scaledPixel()
+                // Set position based on anchor point, not 0.percent()
+                x = anchorToUse.getX(this@UIPlayer)
+                y = anchorToUse.getY(this@UIPlayer)
+                color = ConfigColorConstraint("background")
+                radius = ThemeConfig.backgroundRadius.pixels()
+            }
         }
         
         onMouseEnter {
@@ -188,12 +234,32 @@ class UIPlayer : UIRoundedRectangle(0f) {
     }
     
     private fun updateDimensions() {
-        // Don't update position if we're currently dragging - this prevents flashing/disappearing
+        // Don't update position if we're currently dragging - this prevents flashing/disappearing and jumping
+        // Note: isEditMode should NOT prevent position updates - it only enables dragging when active
         if (isDragging) {
-            // Only update dimensions, not position
+            // Only update dimensions, not position - preserve current position
+            // Use current position instead of recalculating to prevent jumps near edges
+            val currentX = getLeft()
+            val currentY = getTop()
             constrain {
                 height = 50f.scaledPixel()
                 width = 150f.scaledPixel()
+                x = currentX.pixels()
+                y = currentY.pixels()
+                color = ConfigColorConstraint("background")
+                radius = ThemeConfig.backgroundRadius.pixels()
+            }
+            return
+        }
+        
+        // If we have a saved pixel position from dragging, ALWAYS use it - don't recalculate
+        // This prevents jumps when updateDimensions is called after dragging
+        if (savedPixelPosition != null) {
+            constrain {
+                height = 50f.scaledPixel()
+                width = 150f.scaledPixel()
+                x = savedPixelPosition!!.first.pixels()
+                y = savedPixelPosition!!.second.pixels()
                 color = ConfigColorConstraint("background")
                 radius = ThemeConfig.backgroundRadius.pixels()
             }
@@ -236,6 +302,7 @@ class UIPlayer : UIRoundedRectangle(0f) {
         
         val anchorToUse = Anchor.values()[(anchorOrdinalToUse ?: 0).coerceIn(0, Anchor.values().size - 1)]
         
+        // Use anchor point positioning (no saved pixel position)
         constrain {
             height = 50f.scaledPixel()
             width = 150f.scaledPixel()
@@ -296,16 +363,8 @@ class UIPlayer : UIRoundedRectangle(0f) {
         constrain {
             color = bgConstraint
         }
-        // Update border if currently hovered
-        if (isHovered()) {
-            val borderColor = if (isEditMode) {
-                java.awt.Color(255, 255, 0, 255) // Yellow border to indicate edit mode
-            } else {
-                ThemeConfig.borderColor
-            }
-            removeEffect<OutlineEffect>()
-            enableEffect(OutlineEffect(borderColor, if (isEditMode) 2F else 1F, drawInsideChildren = true))
-        }
+        // Don't manage borders here - let onMouseEnter/onMouseLeave handle it
+        // This prevents borders from appearing when they shouldn't during frequent theme updates
         progress.updateTheme()
         controls.updateTheme()
         if (ThemeConfig.hideImage) {
@@ -338,8 +397,14 @@ class UIPlayer : UIRoundedRectangle(0f) {
     }
 
     override fun isHovered(): Boolean {
-        // Allow hover detection even when no screen is open (for dragging)
-        return super.isHovered()
+        // Only allow hover detection when a screen is open OR in edit mode
+        // This prevents flickering when crosshair moves over overlay during normal gameplay
+        val screenOpen = UScreen.currentScreen != null
+        return if (screenOpen || isEditMode) {
+            super.isHovered()
+        } else {
+            false
+        }
     }
     
     // Called every tick to handle dragging
@@ -367,6 +432,8 @@ class UIPlayer : UIRoundedRectangle(0f) {
             
             setX(clampedX.pixels())
             setY(clampedY.pixels())
+            // Update saved pixel position while dragging
+            savedPixelPosition = clampedX to clampedY
         } else {
             // Mouse button released, stop dragging first
             isDragging = false
@@ -380,6 +447,11 @@ class UIPlayer : UIRoundedRectangle(0f) {
     private fun saveDragPosition() {
         // Don't save if still dragging
         if (isDragging) return
+        
+        // Save the current pixel position so it persists across updates
+        val currentX = getLeft()
+        val currentY = getTop()
+        savedPixelPosition = currentX to currentY
         
         // Calculate which anchor point this position is closest to
         val centerX = getLeft() + getWidth() / 2

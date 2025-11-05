@@ -30,6 +30,8 @@ object Player {
             // Ensure we're using the correct anchor point from config
             // First, try to read from config file directly to ensure we have the correct value
             var anchorOrdinalToUse: Int? = null
+            var xOffsetFromFile: Float? = null
+            var yOffsetFromFile: Float? = null
             val configFile = java.io.File("./config/craftify.toml")
             if (configFile.exists()) {
                 try {
@@ -47,6 +49,17 @@ object Player {
                             anchorOrdinalToUse = match.groupValues[1].toIntOrNull()
                             break
                         }
+                    }
+                    // Also read xOffset and yOffset
+                    val xOffsetPattern = Regex("xOffset\\s*=\\s*([\\d.]+)")
+                    val xOffsetMatch = xOffsetPattern.find(content)
+                    if (xOffsetMatch != null) {
+                        xOffsetFromFile = xOffsetMatch.groupValues[1].toFloatOrNull()
+                    }
+                    val yOffsetPattern = Regex("yOffset\\s*=\\s*([\\d.]+)")
+                    val yOffsetMatch = yOffsetPattern.find(content)
+                    if (yOffsetMatch != null) {
+                        yOffsetFromFile = yOffsetMatch.groupValues[1].toFloatOrNull()
                     }
                 } catch (e: Exception) {
                     // Ignore errors reading file
@@ -76,8 +89,11 @@ object Player {
                     }
                 }
                 Config.anchorPoint = correctAnchor
-                Config.xOffset = correctAnchor.getDefaultXOffset()
-                Config.yOffset = correctAnchor.getDefaultYOffset()
+                // Use saved offsets if available, otherwise use defaults
+                if (xOffsetFromFile != null) Config.xOffset = xOffsetFromFile
+                else Config.xOffset = correctAnchor.getDefaultXOffset()
+                if (yOffsetFromFile != null) Config.yOffset = yOffsetFromFile
+                else Config.yOffset = correctAnchor.getDefaultYOffset()
             }
             
             changePosition(correctAnchor)
@@ -123,8 +139,21 @@ object Player {
     }
 
     fun changePosition(position: Anchor) {
-        // Don't change position if player is currently being dragged or in edit mode
-        if (player?.isDragging == true || isEditMode()) return
+        // Don't change position if player is currently being dragged
+        // Note: isEditMode should NOT prevent position changes - it only enables dragging
+        if (player?.isDragging == true) return
+        
+        // Clear saved pixel position when changing anchor point (use anchor-based positioning)
+        player?.let { 
+            // Use reflection to access private savedPixelPosition field
+            try {
+                val field = it::class.java.getDeclaredField("savedPixelPosition")
+                field.isAccessible = true
+                field.set(it, null)
+            } catch (e: Exception) {
+                // Field might not exist or be accessible, that's okay
+            }
+        }
         
         // Store the position so it's applied when player is created
         // Also update immediately if player already exists
