@@ -30,7 +30,15 @@ fun runOnMcThread(block: () -> Unit) {
 }
 
 fun isGuiHidden(): Boolean {
-    return !Minecraft.isGuiEnabled()
+    // Minecraft.isGuiEnabled() doesn't exist in 1.8.9
+    // Use reflection to safely check if the method exists, otherwise return false
+    return try {
+        val method = Minecraft::class.java.getMethod("isGuiEnabled")
+        !(method.invoke(null) as Boolean)
+    } catch (e: Exception) {
+        // Method doesn't exist (1.8.9) - GUI is never hidden in this version
+        false
+    }
 }
 
 fun isDebugGuiOpened(): Boolean {

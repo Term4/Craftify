@@ -124,9 +124,9 @@ class UIPlayer : UIRoundedRectangle(0f) {
                             UIImage(CompletableFuture.supplyAsync {
                                 MemoryImageCache.COVER_IMAGE.getOrSet(url) { url ->
                                     RenderUtils.getImage(url).let {
-                                        val targetSize = 40f * Config.hudScale
+                                        val targetSize = (40 * Config.hudScale).toInt()
                                         val scale = min(it.width / targetSize, it.height / targetSize)
-                                        val extractSize = (targetSize * scale).toInt()
+                                        val extractSize = targetSize * scale
                                         it.getSubimage(it.width / 2 - extractSize / 2, it.height / 2 - extractSize / 2, extractSize, extractSize)
                                     }
                                 }

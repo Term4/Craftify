@@ -18,8 +18,11 @@ object Config : Vigilant(File("./config/craftify.toml")) {
     // General
     var firstTime = true
     var musicService: String? = "disabled"
+    // Enum fields are for internal use, ordinal properties are saved/loaded by Vigilant
+    // Not registered in category builder, so Vigilant won't save/load them
     var linkMode = LinkingMode.OPEN
-    var linkModeOrdinal: Int = LinkingMode.OPEN.ordinal
+    // Don't initialize with default - let Vigilant load it from config
+    var linkModeOrdinal: Int = 0
         get() = field
         set(value) {
             field = value.coerceIn(0, LinkingMode.values().size - 1)
@@ -33,24 +36,33 @@ object Config : Vigilant(File("./config/craftify.toml")) {
     var allowedServers = ""
 
     // Rendering
+    // Enum fields are for internal use, ordinal properties are saved/loaded by Vigilant
+    // Not registered in category builder, so Vigilant won't save/load them
     var anchorPoint = Anchor.TOP_LEFT
-    var anchorPointOrdinal: Int = Anchor.TOP_LEFT.ordinal
+    // Don't initialize with default - let Vigilant load it from config
+    var anchorPointOrdinal: Int = 0
         get() = field
         set(value) {
             field = value.coerceIn(0, Anchor.values().size - 1)
             anchorPoint = Anchor.values()[field]
         }
     
+    // Enum fields are for internal use, ordinal properties are saved/loaded by Vigilant
+    // Not registered in category builder, so Vigilant won't save/load them
     var renderType = RenderType.NON_INTRUSIVE
-    var renderTypeOrdinal: Int = RenderType.NON_INTRUSIVE.ordinal
+    // Don't initialize with default - let Vigilant load it from config
+    var renderTypeOrdinal: Int = 0
         get() = field
         set(value) {
             field = value.coerceIn(0, RenderType.values().size - 1)
             renderType = RenderType.values()[field]
         }
     
+    // Enum fields are for internal use, ordinal properties are saved/loaded by Vigilant
+    // Not registered in category builder, so Vigilant won't save/load them
     var displayMode = DisplayMode.WHEN_SONG_FOUND
-    var displayModeOrdinal: Int = DisplayMode.WHEN_SONG_FOUND.ordinal
+    // Don't initialize with default - let Vigilant load it from config
+    var displayModeOrdinal: Int = 0
         get() = field
         set(value) {
             field = value.coerceIn(0, DisplayMode.values().size - 1)
@@ -60,13 +72,10 @@ object Config : Vigilant(File("./config/craftify.toml")) {
     var streamerMode = false
     var xOffset = 0f
     var yOffset = 0f
-    var hudScale: Float = 1.0f
+    // Don't initialize with default - let Vigilant load it from config
+    var hudScale: Float = 0f
         set(value) {
             field = value.coerceIn(0.1f, 5.0f)
-        }
-        get() {
-            // Ensure value is always within valid range
-            return field.coerceIn(0.1f, 5.0f)
         }
 
     init {
@@ -75,7 +84,7 @@ object Config : Vigilant(File("./config/craftify.toml")) {
 
             prop<ServiceProperty>(::musicService, "Music Service", "What service you want to use for fetching the music you're listening to?")
             selector(::linkModeOrdinal, "Link Mode", "How you will get/display the link when you click on the link button.", LinkingMode.values().map { it.toString() }) {
-                linkMode = LinkingMode.values()[linkModeOrdinal]
+                // Setter syncs enum automatically
                 markDirty()
                 writeData()
             }
@@ -113,26 +122,31 @@ object Config : Vigilant(File("./config/craftify.toml")) {
             decimalSlider(::yOffset, "Position Y Offset", hidden = true)
 
             selector(::anchorPointOrdinal, "Anchor Point", "The Point at which the display will be anchored to.", Anchor.values().map { it.toString() }) {
-                anchorPoint = Anchor.values()[anchorPointOrdinal]
+                // Force sync by triggering setter - OneConfig might bypass it
+                val newValue = anchorPointOrdinal
+                anchorPointOrdinal = -1 // Force change
+                anchorPointOrdinal = newValue // Set actual value, triggering setter
                 xOffset = anchorPoint.getDefaultXOffset()
                 yOffset = anchorPoint.getDefaultYOffset()
                 markDirty()
                 writeData()
-                // Update player position immediately, even if player hasn't been initialized yet
-                // The change will be applied when the player is created
+                // Update player position immediately
                 Player.changePosition(anchorPoint)
             }
             selector(::renderTypeOrdinal, "Render Type", "How/When the song with display.", RenderType.values().map { it.toString() }) {
-                renderType = RenderType.values()[renderTypeOrdinal]
+                // Setter syncs enum automatically
                 markDirty()
                 writeData()
             }
             selector(::displayModeOrdinal, "Display Mode", "When it will display.", DisplayMode.values().map { it.toString() }) {
-                displayMode = DisplayMode.values()[displayModeOrdinal]
+                // Setter syncs enum automatically
                 markDirty()
                 writeData()
             }
             decimalSlider(::hudScale, "HUD Scale", "Scale factor for the HUD overlay. 1.0 = normal size, 0.5 = half size, 2.0 = double size. Recommended range: 0.5 to 3.0.") {
+                // Force update by reassigning - ensures setter runs
+                val newValue = hudScale
+                hudScale = newValue
                 markDirty()
                 writeData()
                 Player.updateTheme()
@@ -141,18 +155,75 @@ object Config : Vigilant(File("./config/craftify.toml")) {
             boolean(::streamerMode, "Streamer Mode", "Will mark the overlay as an overlay in OBS, meaning if you turn off show overlays it won't be shown.\nThis requires the obs-overlay mod to be installed.")
         }
 
+        // Check if config file exists BEFORE initializing
+        val configFile = File("./config/craftify.toml")
+        val configFileExists = configFile.exists()
+        
         initialize()
         
-        // After initialize(), Vigilant has loaded the config
-        // Sync enum fields from ordinal properties (which were loaded by Vigilant)
-        // This ensures the enum fields match what was saved
-        linkMode = LinkingMode.values()[linkModeOrdinal]
-        anchorPoint = Anchor.values()[anchorPointOrdinal]
-        renderType = RenderType.values()[renderTypeOrdinal]
-        displayMode = DisplayMode.values()[displayModeOrdinal]
-        
-        // Ensure hudScale is within valid range after load
+        // Simple sync: just sync enum fields from ordinal values, don't write to file
+        linkMode = LinkingMode.values()[linkModeOrdinal.coerceIn(0, LinkingMode.values().size - 1)]
+        anchorPoint = Anchor.values()[anchorPointOrdinal.coerceIn(0, Anchor.values().size - 1)]
+        renderType = RenderType.values()[renderTypeOrdinal.coerceIn(0, RenderType.values().size - 1)]
+        displayMode = DisplayMode.values()[displayModeOrdinal.coerceIn(0, DisplayMode.values().size - 1)]
         hudScale = hudScale.coerceIn(0.1f, 5.0f)
+        xOffset = anchorPoint.getDefaultXOffset()
+        yOffset = anchorPoint.getDefaultYOffset()
+        
+        // ONLY write to config file if it doesn't exist (first time setup)
+        // If file exists, don't touch it - just read from it
+        if (!configFileExists && firstTime) {
+            // First time - set defaults and create config file
+            anchorPointOrdinal = Anchor.TOP_LEFT.ordinal
+            hudScale = 1.0f
+            linkModeOrdinal = LinkingMode.OPEN.ordinal
+            renderTypeOrdinal = RenderType.NON_INTRUSIVE.ordinal
+            displayModeOrdinal = DisplayMode.WHEN_SONG_FOUND.ordinal
+            linkMode = LinkingMode.values()[linkModeOrdinal]
+            anchorPoint = Anchor.values()[anchorPointOrdinal]
+            renderType = RenderType.values()[renderTypeOrdinal]
+            displayMode = DisplayMode.values()[displayModeOrdinal]
+            xOffset = anchorPoint.getDefaultXOffset()
+            yOffset = anchorPoint.getDefaultYOffset()
+            markDirty()
+            writeData()
+        }
+        
+        // Register listeners for property changes (OneConfig might bypass callbacks)
+        // These listeners will fire when properties are changed, even if callbacks don't
+        try {
+            registerListener("anchorPointOrdinal") { _: Any ->
+                anchorPoint = Anchor.values()[anchorPointOrdinal.coerceIn(0, Anchor.values().size - 1)]
+                xOffset = anchorPoint.getDefaultXOffset()
+                yOffset = anchorPoint.getDefaultYOffset()
+                Player.changePosition(anchorPoint)
+                markDirty()
+                writeData()
+            }
+            registerListener("hudScale") { _: Any ->
+                hudScale = hudScale.coerceIn(0.1f, 5.0f)
+                Player.updateTheme()
+                markDirty()
+                writeData()
+            }
+            registerListener("linkModeOrdinal") { _: Any ->
+                linkMode = LinkingMode.values()[linkModeOrdinal.coerceIn(0, LinkingMode.values().size - 1)]
+                markDirty()
+                writeData()
+            }
+            registerListener("renderTypeOrdinal") { _: Any ->
+                renderType = RenderType.values()[renderTypeOrdinal.coerceIn(0, RenderType.values().size - 1)]
+                markDirty()
+                writeData()
+            }
+            registerListener("displayModeOrdinal") { _: Any ->
+                displayMode = DisplayMode.values()[displayModeOrdinal.coerceIn(0, DisplayMode.values().size - 1)]
+                markDirty()
+                writeData()
+            }
+        } catch (e: Exception) {
+            // registerListener might not be available, that's okay
+        }
         
         // Update player with current config values
         Player.changePosition(anchorPoint)
