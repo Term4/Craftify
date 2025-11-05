@@ -170,6 +170,8 @@ object Player {
             checkAndInitPlayer()
             // Update drag during render for smooth 60+ FPS dragging
             player?.updateDrag()
+            // Update progress bar drag (for seeking)
+            player?.progress?.updateDrag()
             ObsOverlayCompat.draw {
                 window.draw(matrix)
             }

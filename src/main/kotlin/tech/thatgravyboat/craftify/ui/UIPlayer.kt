@@ -217,7 +217,9 @@ class UIPlayer : UIRoundedRectangle(0f) {
         fontProvider = ThemeFontProvider("artist")
     } childOf info }
 
-    private val progress by UIProgressBar().constrain {
+    val progress by UIProgressBar(
+        getEditModeState = { isEditMode }
+    ).constrain {
         width = 100.percent()
         height = 3f.scaledPixel()
         y = (40f - 3f).scaledPixel()
