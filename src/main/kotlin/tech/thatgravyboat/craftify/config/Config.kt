@@ -159,7 +159,51 @@ object Config : Vigilant(File("./config/craftify.toml")) {
         val configFile = File("./config/craftify.toml")
         val configFileExists = configFile.exists()
         
+        // If config file exists, read values from it to restore them if Vigilant doesn't load them
+        var fileAnchorPoint: Int? = null
+        var fileHudScale: Float? = null
+        var fileLinkMode: Int? = null
+        var fileRenderType: Int? = null
+        var fileDisplayMode: Int? = null
+        
+        if (configFileExists) {
+            try {
+                val content = configFile.readText()
+                val anchorMatch = Regex("anchor_point\\s*=\\s*(\\d+)").find(content)
+                fileAnchorPoint = anchorMatch?.groupValues?.get(1)?.toIntOrNull()
+                val scaleMatch = Regex("hud_scale\\s*=\\s*([\\d.]+)").find(content)
+                fileHudScale = scaleMatch?.groupValues?.get(1)?.toFloatOrNull()
+                val linkMatch = Regex("link_mode\\s*=\\s*(\\d+)").find(content)
+                fileLinkMode = linkMatch?.groupValues?.get(1)?.toIntOrNull()
+                val renderMatch = Regex("render_type\\s*=\\s*(\\d+)").find(content)
+                fileRenderType = renderMatch?.groupValues?.get(1)?.toIntOrNull()
+                val displayMatch = Regex("display_mode\\s*=\\s*(\\d+)").find(content)
+                fileDisplayMode = displayMatch?.groupValues?.get(1)?.toIntOrNull()
+            } catch (e: Exception) {
+                // Ignore errors reading file
+            }
+        }
+        
         initialize()
+        
+        // Always restore from file if it exists and has values - file is the source of truth
+        if (configFileExists) {
+            if (fileAnchorPoint != null && fileAnchorPoint >= 0 && anchorPointOrdinal != fileAnchorPoint) {
+                anchorPointOrdinal = fileAnchorPoint.coerceIn(0, Anchor.values().size - 1)
+            }
+            if (fileHudScale != null && fileHudScale >= 0.1f && kotlin.math.abs(hudScale - fileHudScale) > 0.001f) {
+                hudScale = fileHudScale.coerceIn(0.1f, 5.0f)
+            }
+            if (fileLinkMode != null && fileLinkMode >= 0 && linkModeOrdinal != fileLinkMode) {
+                linkModeOrdinal = fileLinkMode.coerceIn(0, LinkingMode.values().size - 1)
+            }
+            if (fileRenderType != null && fileRenderType >= 0 && renderTypeOrdinal != fileRenderType) {
+                renderTypeOrdinal = fileRenderType.coerceIn(0, RenderType.values().size - 1)
+            }
+            if (fileDisplayMode != null && fileDisplayMode >= 0 && displayModeOrdinal != fileDisplayMode) {
+                displayModeOrdinal = fileDisplayMode.coerceIn(0, DisplayMode.values().size - 1)
+            }
+        }
         
         // Simple sync: just sync enum fields from ordinal values, don't write to file
         linkMode = LinkingMode.values()[linkModeOrdinal.coerceIn(0, LinkingMode.values().size - 1)]
